@@ -17,11 +17,13 @@ from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPool2D
 from tensorflow.keras.optimizers import SGD
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
+from tensorflow.keras.models import model_from_json
 
 # unused for now, to be used for ROC analysis
 from sklearn.metrics import roc_curve, auc
+import matplotlib.pyplot as plt
 
-
+#%%
 # the size of the images in the PCAM dataset
 IMAGE_SIZE = 96
 
@@ -29,8 +31,8 @@ IMAGE_SIZE = 96
 def get_pcam_generators(base_dir, train_batch_size=32, val_batch_size=32):
 
      # dataset parameters
-     train_path = os.path.join(base_dir, 'train+val', 'train')
-     valid_path = os.path.join(base_dir, 'train+val', 'valid')
+     train_path = os.path.join(base_dir, 'train')
+     valid_path = os.path.join(base_dir, 'valid')
 
 
      RESCALING_FACTOR = 1./255
@@ -76,11 +78,8 @@ def get_model(kernel_size=(3,3), pool_size=(4,4), first_filters=32, second_filte
 # get the model
 model = get_model()
 
-
 # get the data generators
-train_gen, val_gen = get_pcam_generators('/change/me/to/dataset/path')
-
-
+train_gen, val_gen = get_pcam_generators('C:\8P361')
 
 # save the model and weights
 model_name = 'my_first_cnn_model'
@@ -97,7 +96,7 @@ checkpoint = ModelCheckpoint(weights_filepath, monitor='val_loss', verbose=1, sa
 tensorboard = TensorBoard(os.path.join('logs', model_name))
 callbacks_list = [checkpoint, tensorboard]
 
-
+#%%
 # train the model
 train_steps = train_gen.n//train_gen.batch_size
 val_steps = val_gen.n//val_gen.batch_size
@@ -107,7 +106,36 @@ history = model.fit(train_gen, steps_per_epoch=train_steps,
                     validation_steps=val_steps,
                     epochs=3,
                     callbacks=callbacks_list)
+#%%
+MODEL_FILEPATH = 'my_first_cnn_model.json' 
+MODEL_WEIGHTS_FILEPATH = 'my_first_cnn_model_weights.hdf5'
+
+# load model and model weights
+json_file = open(MODEL_FILEPATH, 'r')
+loaded_model_json = json_file.read()
+json_file.close()
+model = model_from_json(loaded_model_json)
+
+# load weights into new model
+model.load_weights(MODEL_WEIGHTS_FILEPATH)
+#%%
+# apply model to validation dataset
+train_gen, val_gen = get_pcam_generators('C:\8P361')
+val_pred = model.predict(val_gen)
 
 # ROC analysis
+fpr, tpr, thresholds = roc_curve(val_gen.classes, val_pred)
+auc_model = auc(fpr, tpr)
 
-# TODO Perform ROC analysis on the validation set
+#%%
+# visualisation
+plt.plot([0,100],[0,100],'r--', label='Random classifier')
+plt.plot(fpr*100, tpr*100, label='Model')
+plt.xlabel('False positive rate (1-specificity) [%]')
+plt.ylabel('True positive rate (sensitivity) [%]')
+plt.title('ROC curve')
+plt.xlim(0,100)
+plt.ylim(0,100)
+plt.legend()
+plt.show()
+print(auc_model)
