@@ -120,10 +120,29 @@ model.load_weights(MODEL_WEIGHTS_FILEPATH)
 #%%
 # apply model to validation dataset
 train_gen, val_gen = get_pcam_generators('C:\8P361')
-val_pred = model.predict(val_gen)
+# Create lists for storing the predictions and labels
+predictions = []
+labels = []
 
+# Get the total number of labels in generator 
+# (i.e. the length of the dataset where the generator generates batches from)
+n = len(val_gen.labels)
+
+# Loop over the generator
+for data, label in val_gen:
+    # Make predictions on data using the model. Store the results.
+    predictions.extend(model.predict(data).flatten())
+
+    # Store corresponding labels
+    labels.extend(label)
+
+    # We have to break out from the generator when we've processed 
+    # the entire once (otherwise we would end up with duplicates). 
+    if (len(label) <= val_gen.batch_size) and (len(predictions) == n):
+        break
+#%%
 # ROC analysis
-fpr, tpr, thresholds = roc_curve(val_gen.classes, val_pred)
+fpr, tpr, thresholds = roc_curve(labels, predictions)
 auc_model = auc(fpr, tpr)
 
 #%%
