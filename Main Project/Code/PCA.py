@@ -5,11 +5,8 @@ Created on Tue Mar 14 14:02:22 2023
 @author: kinho
 """
 
-import os
-
 import numpy as np
 
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 
 from sklearn.decomposition import IncrementalPCA
@@ -18,7 +15,7 @@ import random
 import pickle as pk
 from os.path import dirname, abspath
 
-from main import get_pcam_generators
+from datagen import get_pcam_generators
 
 # the size of the images in the PCAM dataset
 IMAGE_SIZE = 96
@@ -70,7 +67,22 @@ def Inc_PCA(data,com=[None,None,None]):
         print("Batch",i+1,"done")
         
     return pca_r,pca_g,pca_b
+#%%  
+# get the data generators for IPCA
+# batch size for IPCa will be equal to train_batch_size
+train_gen, val_gen = get_pcam_generators('C:\8P361',10000,10000)
+#%%
+# train IPCA models
+# number of retained components can not be higher than 9216 (number of features per channel)
+# or train_batch_size
+pca_r,pca_g,pca_b = Inc_PCA(train_gen)
 
+# save trained IPCA objects
+parent = dirname(dirname(abspath(__file__)))
+folder = parent + "\IPCA Models\\"
+pk.dump(pca_r, open(folder + "pca_r.pkl","wb"))
+pk.dump(pca_g, open(folder + "pca_g.pkl","wb"))
+pk.dump(pca_b, open(folder + "pca_b.pkl","wb"))
 #%%
 '''
 All code below is for testing/analysing the IPCA objects
@@ -91,33 +103,36 @@ pca_r = pk.load(open(folder + "pca_r_all.pkl",'rb'))
 pca_g = pk.load(open(folder + "pca_g_all.pkl",'rb'))
 pca_b = pk.load(open(folder + "pca_b_all.pkl",'rb'))
 # use IPCA models to transform and reconstruct images
-for i in range(3):
-    # select random images
-    batch = random.randrange(len(train_gen))
-    n = random.randrange(len(train_gen[batch][0]))
-    img = train_gen[batch][0][n]
-    # split images into three color channels and flatten
-    img_r = img[:,:,0].reshape(1,-1)
-    img_g = img[:,:,1].reshape(1,-1)
-    img_b = img[:,:,2].reshape(1,-1)
-    
-    # apply dimensionality reduction to images
-    img_rt = pca_r.transform(img_r)
-    img_gt = pca_g.transform(img_g)
-    img_bt = pca_b.transform(img_b)
-    
-    # transform data back into original space
-    img_rinv = pca_r.inverse_transform(img_rt).reshape(IMAGE_SIZE,IMAGE_SIZE)
-    img_ginv = pca_g.inverse_transform(img_gt).reshape(IMAGE_SIZE,IMAGE_SIZE)
-    img_binv = pca_b.inverse_transform(img_bt).reshape(IMAGE_SIZE,IMAGE_SIZE)
+nr_images = 3
+batch = random.randrange(len(train_gen))
+n = random.sample(range(len(train_gen[batch][0])),nr_images)
+img = train_gen[batch][0][n]
+
+# split images into three color channels and flatten
+img_r = img[:,:,:,0].reshape(nr_images,-1)
+img_g = img[:,:,:,1].reshape(nr_images,-1)
+img_b = img[:,:,:,2].reshape(nr_images,-1)
+
+# apply dimensionality reduction to images
+img_rt = pca_r.transform(img_r)
+img_gt = pca_g.transform(img_g)
+img_bt = pca_b.transform(img_b)
+
+# transform data back into original space
+img_rinv = pca_r.inverse_transform(img_rt).reshape(nr_images,IMAGE_SIZE,IMAGE_SIZE)
+img_ginv = pca_g.inverse_transform(img_gt).reshape(nr_images,IMAGE_SIZE,IMAGE_SIZE)
+img_binv = pca_b.inverse_transform(img_bt).reshape(nr_images,IMAGE_SIZE,IMAGE_SIZE)
+
+for i in range(nr_images):
     # merge color channels into single image
-    img_rec = cv2.merge((img_rinv,img_ginv,img_binv))
-    
+    img_rec = cv2.merge((img_rinv[i],img_ginv[i],img_binv[i]))
+
     # show original and reconstructed images side-by-side
-    pair = np.concatenate((img, img_rec), axis=1)
-    plt.figure(figsize=(4,2))
-    plt.imshow(pair)
-    plt.show()
+    f,ax = plt.subplots(1,2)
+    ax[0].imshow(img[i])
+    ax[1].imshow(img_rec)
+    ax[0].axis('off')
+    ax[1].axis('off')
 
 #%%
 # visualize cumulative variance explaned by each component
@@ -148,7 +163,8 @@ for i in range(len(pca)):
     plt.figure()
     
     exp_var = pca[i].explained_variance_ratio_ * 100
-    plt.bar(range(1, pca[i].n_components_ + 1), exp_var, align='center',
+    # plot without components with biggest explained variance
+    plt.bar(range(4, pca[i].n_components_ + 1), exp_var[3:], align='center',
             color=color[i], width=100)
     
     plt.ylabel('Explained variance percentage')
