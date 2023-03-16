@@ -148,7 +148,7 @@ for i in range(len(pca)):
     plt.figure()
     
     exp_var = pca[i].explained_variance_ratio_ * 100
-    plt.bar(range(1, pca[i].n_components_ + 1), exp_var, align='center',
+    plt.bar(range(4, pca[i].n_components_ + 1), exp_var[3:], align='center',
             color=color[i], width=100)
     
     plt.ylabel('Explained variance percentage')
