@@ -134,30 +134,56 @@ for i in range(len(pca)):
     com = pca[i].n_components_
 
     plt.step(range(1, com+2), cum_exp_var, where='mid',
-         label='Cumulative explained variance for ' + color[i], color=color[i])
+         label='Cumulative explained variance for the ' + color[i] + ' color channel', 
+         color=color[i])
 
 plt.ylabel('Explained variance percentage')
 plt.xlabel('Principal component index')
 plt.legend(loc='right')
-plt.title("PCA")
+plt.title("Cumulative explained variance")
 plt.tight_layout()
 
+# visualize explained variance per component per IPCA model
+for i in range(len(pca)):
+    plt.figure()
+    
+    exp_var = pca[i].explained_variance_ratio_ * 100
+    plt.bar(range(1, pca[i].n_components_ + 1), exp_var, align='center',
+            color=color[i], width=100)
+    
+    plt.ylabel('Explained variance percentage')
+    plt.xlabel('Principal component index')
+    plt.title("Individual explained variance for the " + color[i] + ' color channel')
+    plt.tight_layout()
+    
+    
 #%%
 # get index of max component to keep to retain target variance
-pca = [pca_r_all,pca_g_all,pca_b_all]
+exp_var_r = pca_r_all.explained_variance_ratio_
+exp_var_g = pca_g_all.explained_variance_ratio_
+exp_var_b = pca_b_all.explained_variance_ratio_
+exp_var_list = [exp_var_r,exp_var_g,exp_var_b]
 # define target variance for each color channel [r,g,b]
 target_var = [0.8, 0.8, 0.8]
 com_target_idx = []
-for i in range(len(pca)):
-    cum_var = np.cumsum(pca[i].explained_variance_ratio_)
+for i in range(len(exp_var_list)):
+    cum_var = np.cumsum(exp_var_list[i])
     # compare cumulative variance ratio with target and return index
     com_target_idx.append(np.argmax(cum_var>=target_var[i]))
 print(com_target_idx)
 #%%
 # view explained variance ratio per component
-exp_var_r = pca_r_all.explained_variance_ratio_
-exp_var_g = pca_g_all.explained_variance_ratio_
-exp_var_b = pca_b_all.explained_variance_ratio_
 print(exp_var_r)
 print(exp_var_g)
 print(exp_var_b)
+#%%
+# calulate number of components with a explained variance ratio above the
+# mean explained variance ratio
+mean_exp_var = []
+num_com_above = []
+for i in range(len(exp_var_list)):
+    # calculate mean
+    mean_exp_var.append(np.mean(exp_var_list[i]))
+    num_com_above.append(np.count_nonzero(exp_var_list[i] > mean_exp_var[i]))
+print(mean_exp_var)
+print(num_com_above)
