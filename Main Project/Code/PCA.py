@@ -64,25 +64,25 @@ def Inc_PCA(data,com=[None,None,None]):
         pca_r.partial_fit(r_batch)
         pca_g.partial_fit(g_batch)
         pca_b.partial_fit(b_batch)
-        print("Batch",i+1,"done")
+        print("Batch {}/{} done".format(i+1,len(data)))
         
     return pca_r,pca_g,pca_b
 #%%  
 # get the data generators for IPCA
 # batch size for IPCa will be equal to train_batch_size
-train_gen, val_gen = get_pcam_generators('C:\8P361',10000,10000)
+train_gen, val_gen = get_pcam_generators('C:\8P361',5000,5000)
 #%%
 # train IPCA models
 # number of retained components can not be higher than 9216 (number of features per channel)
 # or train_batch_size
-pca_r,pca_g,pca_b = Inc_PCA(train_gen)
+pca_r,pca_g,pca_b = Inc_PCA(train_gen, [1262,786,1848])
 
 # save trained IPCA objects
 parent = dirname(dirname(abspath(__file__)))
 folder = parent + "\IPCA Models\\"
-pk.dump(pca_r, open(folder + "pca_r.pkl","wb"))
-pk.dump(pca_g, open(folder + "pca_g.pkl","wb"))
-pk.dump(pca_b, open(folder + "pca_b.pkl","wb"))
+pk.dump(pca_r, open(folder + "pca_r_80.pkl","wb"))
+pk.dump(pca_g, open(folder + "pca_g_80.pkl","wb"))
+pk.dump(pca_b, open(folder + "pca_b_80.pkl","wb"))
 #%%
 '''
 All code below is for testing/analysing the IPCA objects
@@ -99,11 +99,11 @@ pca_b_all = pk.load(open(folder + "pca_b_all.pkl",'rb'))
 train_gen, val_gen = get_pcam_generators('C:\8P361')
 #%%
 # load other IPCa models
-pca_r = pk.load(open(folder + "pca_r_all.pkl",'rb'))
-pca_g = pk.load(open(folder + "pca_g_all.pkl",'rb'))
-pca_b = pk.load(open(folder + "pca_b_all.pkl",'rb'))
+pca_r = pk.load(open(folder + "pca_r_80.pkl",'rb'))
+pca_g = pk.load(open(folder + "pca_g_80.pkl",'rb'))
+pca_b = pk.load(open(folder + "pca_b_80.pkl",'rb'))
 # use IPCA models to transform and reconstruct images
-nr_images = 3
+nr_images = 5
 batch = random.randrange(len(train_gen))
 n = random.sample(range(len(train_gen[batch][0])),nr_images)
 img = train_gen[batch][0][n]
@@ -130,9 +130,12 @@ for i in range(nr_images):
     # show original and reconstructed images side-by-side
     f,ax = plt.subplots(1,2)
     ax[0].imshow(img[i])
-    ax[1].imshow(img_rec)
     ax[0].axis('off')
+    ax[0].set_title('original')
+
+    ax[1].imshow(img_rec)
     ax[1].axis('off')
+    ax[1].set_title('reconstruction')
 
 #%%
 # visualize cumulative variance explaned by each component
@@ -186,6 +189,8 @@ for i in range(len(exp_var_list)):
     cum_var = np.cumsum(exp_var_list[i])
     # compare cumulative variance ratio with target and return index
     com_target_idx.append(np.argmax(cum_var>=target_var[i]))
+# note: this is the index of the max component
+# the actual number of components to keep is this plus one
 print(com_target_idx)
 #%%
 # view explained variance ratio per component
