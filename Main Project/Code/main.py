@@ -14,8 +14,14 @@ Created on Tue Mar 14 14:02:22 2023
 
 import pickle as pk
 from os.path import dirname, abspath
+import os
 
 from datagen import get_pcam_generators
+
+# set working directory to location of py file
+pypath = abspath(__file__)
+dname = dirname(pypath)
+os.chdir(dname)
     
 #%%
 # load IPCA models

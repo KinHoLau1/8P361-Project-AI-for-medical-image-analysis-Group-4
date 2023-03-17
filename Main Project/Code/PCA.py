@@ -14,8 +14,14 @@ import cv2
 import random
 import pickle as pk
 from os.path import dirname, abspath
+import os
 
 from datagen import get_pcam_generators
+
+# set working directory to location of py file
+pypath = abspath(__file__)
+dname = dirname(pypath)
+os.chdir(dname)
 
 # the size of the images in the PCAM dataset
 IMAGE_SIZE = 96
@@ -75,7 +81,7 @@ train_gen, val_gen = get_pcam_generators('C:\8P361',5000,5000)
 # train IPCA models
 # number of retained components can not be higher than 9216 (number of features per channel)
 # or train_batch_size
-pca_r,pca_g,pca_b = Inc_PCA(train_gen, [1262,786,1848])
+pca_r,pca_g,pca_b = Inc_PCA(train_gen, [1263,787,1849])
 
 # save trained IPCA objects
 parent = dirname(dirname(abspath(__file__)))
@@ -98,7 +104,17 @@ pca_b_all = pk.load(open(folder + "pca_b_all.pkl",'rb'))
 # get the data generators
 train_gen, val_gen = get_pcam_generators('C:\8P361')
 #%%
-# load other IPCa models
+# load IPCa models
+pca_r = pk.load(open(folder + "pca_r_80.pkl",'rb'))
+pca_g = pk.load(open(folder + "pca_g_80.pkl",'rb'))
+pca_b = pk.load(open(folder + "pca_b_80.pkl",'rb'))
+
+# view retained variance
+pca_list = [pca_r,pca_g,pca_b]
+for i in pca_list:
+    print(np.sum(i.explained_variance_ratio_))
+#%%
+# load IPCa models
 pca_r = pk.load(open(folder + "pca_r_80.pkl",'rb'))
 pca_g = pk.load(open(folder + "pca_g_80.pkl",'rb'))
 pca_b = pk.load(open(folder + "pca_b_80.pkl",'rb'))
@@ -194,6 +210,9 @@ for i in range(len(exp_var_list)):
 print(com_target_idx)
 #%%
 # view explained variance ratio per component
+exp_var_r = pca_r_all.explained_variance_ratio_
+exp_var_g = pca_g_all.explained_variance_ratio_
+exp_var_b = pca_b_all.explained_variance_ratio_
 print(exp_var_r)
 print(exp_var_g)
 print(exp_var_b)
