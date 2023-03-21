@@ -113,7 +113,7 @@ pca_b = pk.load(open(folder + "pca_b_80.pkl",'rb'))
 pca_list = [pca_r,pca_g,pca_b]
 for i in pca_list:
     print(np.sum(i.explained_variance_ratio_))
-#%%
+#%% test IPCA models
 # load IPCa models
 pca_r = pk.load(open(folder + "pca_r_80.pkl",'rb'))
 pca_g = pk.load(open(folder + "pca_g_80.pkl",'rb'))
