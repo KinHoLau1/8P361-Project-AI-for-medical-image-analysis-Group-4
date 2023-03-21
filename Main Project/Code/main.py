@@ -16,23 +16,80 @@ import pickle as pk
 from os.path import dirname, abspath
 import os
 
-from datagen import get_pcam_generators
-
 # set working directory to location of py file
 pypath = abspath(__file__)
 dname = dirname(pypath)
 os.chdir(dname)
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Flatten
+from tensorflow.keras.layers import Conv2D, MaxPool2D
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
+
+from datagen import get_pcam_generators
+
+def get_model(kernel_size=(3,3), pool_size=(4,4), first_filters=32, second_filters=64, IMAGE_SIZE=96):
+
+     # build the model
+     model = Sequential()
+
+     model.add(Conv2D(first_filters, kernel_size, activation = 'relu', padding = 'same', input_shape = (IMAGE_SIZE, IMAGE_SIZE, 3)))
+     model.add(MaxPool2D(pool_size = pool_size))
+
+     model.add(Conv2D(second_filters, kernel_size, activation = 'relu', padding = 'same'))
+     model.add(MaxPool2D(pool_size = pool_size))
+
+     model.add(Conv2D(64, 6, activation = 'relu', padding = 'valid'))
+     model.add(Conv2D(1, 1, activation = 'sigmoid', padding = 'valid'))
+     model.add(Flatten())
+
+     # compile the model
+     model.compile(SGD(learning_rate=0.01, momentum=0.95), loss = 'binary_crossentropy', metrics=['accuracy'])
+
+     return model
     
 #%%
 # load IPCA models
 parent = dirname(dirname(abspath(__file__)))
 folder = parent + "\IPCA Models\\"
-pca_r = pk.load(open(folder + "pca_r_all.pkl",'rb'))
-pca_g = pk.load(open(folder + "pca_g_all.pkl",'rb'))
-pca_b = pk.load(open(folder + "pca_b_all.pkl",'rb'))
+
+# select retained variance
+#ret_var = '90'
+ret_var = '80'
+#ret_var = '70'
+#ret_var = '60'
+
+pca_r = pk.load(open(folder + "pca_r_"+ret_var+".pkl",'rb'))
+pca_g = pk.load(open(folder + "pca_g_"+ret_var+".pkl",'rb'))
+pca_b = pk.load(open(folder + "pca_b_"+ret_var+".pkl",'rb'))
 # get the data generators (with real time dimensionality reduction)
-train_gen, val_gen = get_pcam_generators('C:\8P361',preprocessing=True,
+train_gen, val_gen = get_pcam_generators('C:\8P361',1024,1024,preprocessing=True,
                                          pca_r=pca_r,pca_g=pca_g,pca_b=pca_b)
-#%%
-import matplotlib.pyplot as plt
-plt.imshow(train_gen[0][0][5])
+#%% build model
+model = get_model()
+
+# save the model and weights
+model_name = 'IPCA_'+ret_var+'_model'
+model_filepath = model_name + '.json'
+weights_filepath = model_name + '_weights.hdf5'
+
+model_json = model.to_json() # serialize model to JSON
+with open(model_filepath, 'w') as json_file:
+    json_file.write(model_json)
+
+# define the model checkpoint and Tensorboard callbacks
+checkpoint = ModelCheckpoint(weights_filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+tensorboard = TensorBoard(os.path.join('logs', model_name))
+# stop training early if validation loss stops decreasing
+earlystopping = EarlyStopping(monitor="val_loss",mode="min", patience=1, restore_best_weights=True)
+callbacks_list = [checkpoint, tensorboard, earlystopping]
+#%% train model
+train_steps = train_gen.n//train_gen.batch_size
+val_steps = val_gen.n//val_gen.batch_size
+
+history = model.fit(train_gen, steps_per_epoch=train_steps,
+                    validation_data=val_gen,
+                    validation_steps=val_steps,
+                    epochs=10,
+                    callbacks=callbacks_list)
