@@ -16,7 +16,9 @@ def get_pcam_generators(base_dir, train_batch_size=32, val_batch_size=32, prepro
                         pca_r=[],pca_g=[],pca_b=[]):
     '''
     Generates Keras DirectoryIterator objects for training and validation
-    datasets. These objects contain the images and their labels.
+    datasets. These objects contain the images and their labels. Images are
+    preproccesed by scaling intensities from 0-255 to 0-1 and applying component
+    reduction
 
     Parameters
     ----------
@@ -25,9 +27,9 @@ def get_pcam_generators(base_dir, train_batch_size=32, val_batch_size=32, prepro
     The default is 32.
     val_batch_size : The batch size of the validation data object. 
     The default is 32.
-    preprocessing : Boolean determining whether or not to apply dimensionality reduction
+    preprocessing : Boolean determining whether or not to apply component reduction
     The default is False
-    pca_r, pca_g, pca_b: IPCA models to use if dimensionality reduction is applied
+    pca_r, pca_g, pca_b: IPCA models to use if component reduction is applied
     The default is []
     '''
     # dataset parameters
@@ -38,7 +40,7 @@ def get_pcam_generators(base_dir, train_batch_size=32, val_batch_size=32, prepro
     RESCALING_FACTOR = 1./255
 
     # instantiate data generators
-    # apply dimensionality reduction if preprocessing is not False
+    # apply component reduction if preprocessing is not False
     if preprocessing == False:
         datagen = ImageDataGenerator(rescale=RESCALING_FACTOR)
     else:
