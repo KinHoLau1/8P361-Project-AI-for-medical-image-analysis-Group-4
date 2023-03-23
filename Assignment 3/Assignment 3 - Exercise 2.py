@@ -22,7 +22,9 @@ from tensorflow.keras.models import model_from_json
 # unused for now, to be used for ROC analysis
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
-
+import pandas as pd
+import glob
+from matplotlib.pyplot import imread
 #%%
 # the size of the images in the PCAM dataset
 IMAGE_SIZE = 96
@@ -106,8 +108,8 @@ history = model.fit(train_gen, steps_per_epoch=train_steps,
                     epochs=3,
                     callbacks=callbacks_list)
 #%%
-MODEL_FILEPATH = 'fully_convolutional_model.json' 
-MODEL_WEIGHTS_FILEPATH = 'fully_convolutional_model_weights.hdf5'
+MODEL_FILEPATH = "C:\\Users\kinho\OneDrive\Documenten\GitHub\8P361-Project-AI-for-medical-image-analysis-Group-4\Assignment 3\models\\fully_convolutional_model.json" 
+MODEL_WEIGHTS_FILEPATH = "C:\\Users\kinho\OneDrive\Documenten\GitHub\8P361-Project-AI-for-medical-image-analysis-Group-4\Assignment 3\models\\fully_convolutional_model_weights.hdf5"
 
 # load model and model weights
 json_file = open(MODEL_FILEPATH, 'r')
@@ -117,32 +119,45 @@ model = model_from_json(loaded_model_json)
 
 # load weights into new model
 model.load_weights(MODEL_WEIGHTS_FILEPATH)
-#%%
-# apply model to validation dataset
-train_gen, val_gen = get_pcam_generators('C:\8P361')
-# Create lists for storing the predictions and labels
-predictions = []
-labels = []
+batch_size=10000
+val_path = 'C:/8P361/valid'
+val_files = glob.glob(val_path + '/0/*.jpg') + glob.glob(val_path + '/1/*.jpg') 
+# prepare empty dataframe
+pred_pd = pd.DataFrame()
 
-# Get the total number of labels in generator 
-# (i.e. the length of the dataset where the generator generates batches from)
-n = len(val_gen.labels)
+# iterate over all iamges in dataset
+max_idx = len(val_files)
+for idx in range(0, max_idx, batch_size):
+    # track progress
+    if (idx+batch_size) >= max_idx:
+        print('Indexes: %i - %i'%(idx, max_idx))
+    else:
+        print('Indexes: %i - %i'%(idx, idx+batch_size))
+        
+    # create dataframes each loop for temporary storage
+    df = pd.DataFrame({'path': val_files[idx:idx+batch_size]})
 
-# Loop over the generator
-for data, label in val_gen:
-    # Make predictions on data using the model. Store the results.
-    predictions.extend(model.predict(data).flatten())
+    # get the image id 
+    df['id'] = df.path.map(lambda x: x.split(os.sep)[-1].split('.')[0])
+    df['image'] = df['path'].map(imread)
+    
+    # collect images in array
+    K_test = np.stack(df['image'].values)
+    
+    # apply the same preprocessing as during draining
+    K_test = K_test.astype('float')/255.0
+    
+    # generate predictions
+    predictions = model.predict(K_test)
+    
+    df['prediction'] = predictions
+    # append data to final dataframe
+    df['label'] = [int(file.partition('valid/')[2][0]) for file in val_files[idx:idx+batch_size]]
+    pred_pd = pd.concat([pred_pd, df[['id', 'prediction','label']]])
 
-    # Store corresponding labels
-    labels.extend(label)
-
-    # We have to break out from the generator when we've processed 
-    # the entire once (otherwise we would end up with duplicates). 
-    if (len(label) <= val_gen.batch_size) and (len(predictions) == n):
-        break
 #%%
 # ROC analysis
-fpr, tpr, thresholds = roc_curve(labels, predictions)
+fpr, tpr, thresholds = roc_curve(pred_pd['label'], pred_pd['prediction'])
 auc_model = auc(fpr, tpr)
 
 #%%
