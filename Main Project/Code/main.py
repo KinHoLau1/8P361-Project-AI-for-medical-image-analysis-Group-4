@@ -52,17 +52,17 @@ def get_model(kernel_size=(3,3), pool_size=(4,4), first_filters=32, second_filte
 #%%
 # load IPCA models
 parent = dirname(dirname(abspath(__file__)))
-folder = parent + "\IPCA Models\\"
+ipca_folder = parent + "\IPCA Models\\"
 
 # select retained variance
-#ret_var = '90'
-ret_var = '80'
+ret_var = '90'
+#ret_var = '80'
 #ret_var = '70'
 #ret_var = '60'
 
-pca_r = pk.load(open(folder + "pca_r_"+ret_var+".pkl",'rb'))
-pca_g = pk.load(open(folder + "pca_g_"+ret_var+".pkl",'rb'))
-pca_b = pk.load(open(folder + "pca_b_"+ret_var+".pkl",'rb'))
+pca_r = pk.load(open(ipca_folder + "pca_r_"+ret_var+".pkl",'rb'))
+pca_g = pk.load(open(ipca_folder + "pca_g_"+ret_var+".pkl",'rb'))
+pca_b = pk.load(open(ipca_folder + "pca_b_"+ret_var+".pkl",'rb'))
 # get the data generators (with real time dimensionality reduction)
 train_gen, val_gen = get_pcam_generators('C:\8P361',1024,1024,preprocessing=True,
                                          pca_r=pca_r,pca_g=pca_g,pca_b=pca_b)
@@ -70,7 +70,8 @@ train_gen, val_gen = get_pcam_generators('C:\8P361',1024,1024,preprocessing=True
 model = get_model()
 
 # save the model and weights
-model_name = 'IPCA_'+ret_var+'_model'
+model_folder = parent + "\CNN Models\\"
+model_name = model_folder + 'IPCA_'+ret_var+'_model'
 model_filepath = model_name + '.json'
 weights_filepath = model_name + '_weights.hdf5'
 
