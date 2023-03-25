@@ -73,157 +73,186 @@ def Inc_PCA(data,com=[None,None,None]):
         print("Batch {}/{} done".format(i+1,len(data)))
         
     return pca_r,pca_g,pca_b
-#%%  
-# get the data generators for IPCA
-# batch size for IPCa will be equal to train_batch_size
-train_gen, val_gen = get_pcam_generators('C:\8P361',5000,5000)
-#%%
-# train IPCA models
-# number of retained components can not be higher than 9216 (number of features per channel)
-# or train_batch_size
-pca_r,pca_g,pca_b = Inc_PCA(train_gen, [1263,787,1849])
 
-# save trained IPCA objects
-parent = dirname(dirname(abspath(__file__)))
-folder = parent + "\IPCA Models\\"
-pk.dump(pca_r, open(folder + "pca_r_80.pkl","wb"))
-pk.dump(pca_g, open(folder + "pca_g_80.pkl","wb"))
-pk.dump(pca_b, open(folder + "pca_b_80.pkl","wb"))
-#%%
-'''
-All code below is for testing/analysing the IPCA objects
-'''
-# load IPCA models that have kept all components
-parent = dirname(dirname(abspath(__file__)))
-folder = parent + "\IPCA Models\\"
+def IPCA_load(ret_var):
+    '''
+    Loads pickle files containg IPCA objects
 
-pca_r_all = pk.load(open(folder + "pca_r_all.pkl",'rb'))
-pca_g_all = pk.load(open(folder + "pca_g_all.pkl",'rb'))
-pca_b_all = pk.load(open(folder + "pca_b_all.pkl",'rb'))
+    Parameters
+    ----------
+    ret_var : string or int describing which IPCA objects to select
 
-# get the data generators
-train_gen, val_gen = get_pcam_generators('C:\8P361')
-#%%
-# load IPCa models
-pca_r = pk.load(open(folder + "pca_r_80.pkl",'rb'))
-pca_g = pk.load(open(folder + "pca_g_80.pkl",'rb'))
-pca_b = pk.load(open(folder + "pca_b_80.pkl",'rb'))
-
-# view retained variance
-pca_list = [pca_r,pca_g,pca_b]
-for i in pca_list:
-    print(np.sum(i.explained_variance_ratio_))
-#%% test IPCA models
-# load IPCa models
-pca_r = pk.load(open(folder + "pca_r_80.pkl",'rb'))
-pca_g = pk.load(open(folder + "pca_g_80.pkl",'rb'))
-pca_b = pk.load(open(folder + "pca_b_80.pkl",'rb'))
-# use IPCA models to transform and reconstruct images
-nr_images = 5
-batch = random.randrange(len(train_gen))
-n = random.sample(range(len(train_gen[batch][0])),nr_images)
-img = train_gen[batch][0][n]
-
-# split images into three color channels and flatten
-img_r = img[:,:,:,0].reshape(nr_images,-1)
-img_g = img[:,:,:,1].reshape(nr_images,-1)
-img_b = img[:,:,:,2].reshape(nr_images,-1)
-
-# apply dimensionality reduction to images
-img_rt = pca_r.transform(img_r)
-img_gt = pca_g.transform(img_g)
-img_bt = pca_b.transform(img_b)
-
-# transform data back into original space
-img_rinv = pca_r.inverse_transform(img_rt).reshape(nr_images,IMAGE_SIZE,IMAGE_SIZE)
-img_ginv = pca_g.inverse_transform(img_gt).reshape(nr_images,IMAGE_SIZE,IMAGE_SIZE)
-img_binv = pca_b.inverse_transform(img_bt).reshape(nr_images,IMAGE_SIZE,IMAGE_SIZE)
-
-for i in range(nr_images):
-    # merge color channels into single image
-    img_rec = cv2.merge((img_rinv[i],img_ginv[i],img_binv[i]))
-
-    # show original and reconstructed images side-by-side
-    f,ax = plt.subplots(1,2)
-    ax[0].imshow(img[i])
-    ax[0].axis('off')
-    ax[0].set_title('original')
-
-    ax[1].imshow(img_rec)
-    ax[1].axis('off')
-    ax[1].set_title('reconstruction')
-
-#%%
-# visualize cumulative variance explaned by each component
-pca = [pca_r_all,pca_g_all,pca_b_all]
-plt.figure(figsize=[7, 10])
-color = ['red','green','blue']
-# iterate over IPCA objects for each color channel
-for i in range(len(pca)):
-    # extract and scale explaned variance ratios for each component
-    exp_var = pca[i].explained_variance_ratio_ * 100
-    # cumulatively add ratios
-    cum_exp_var = np.cumsum(exp_var)
-    cum_exp_var = np.insert(cum_exp_var,0,0)
-    com = pca[i].n_components_
-
-    plt.step(range(1, com+2), cum_exp_var, where='mid',
-         label='Cumulative explained variance for the ' + color[i] + ' color channel', 
-         color=color[i])
-
-plt.ylabel('Explained variance percentage')
-plt.xlabel('Principal component index')
-plt.legend(loc='right')
-plt.title("Cumulative explained variance")
-plt.tight_layout()
-
-# visualize explained variance per component per IPCA model
-for i in range(len(pca)):
-    plt.figure()
+    Returns
+    -------
+    pca_r, pca_g, pca_b : IPCA objects for three color channels
+    '''
+    # get path to folder containing IPCA objects
+    parent = dirname(dirname(abspath(__file__)))
+    folder = parent + "\IPCA Models\\"
     
-    exp_var = pca[i].explained_variance_ratio_ * 100
-    # plot without components with biggest explained variance
-    plt.bar(range(4, pca[i].n_components_ + 1), exp_var[3:], align='center',
-            color=color[i], width=100)
+    # load IPCA objects
+    pca_r = pk.load(open(folder + "pca_r_"+str(ret_var)+".pkl",'rb'))
+    pca_g = pk.load(open(folder + "pca_g_"+str(ret_var)+".pkl",'rb'))
+    pca_b = pk.load(open(folder + "pca_b_"+str(ret_var)+".pkl",'rb'))
+    
+    return pca_r,pca_g,pca_b
+
+def IPCA_reconstruction(images,pca_r,pca_g,pca_b):
+    '''
+    Produces images with reduced number of components from origanal images
+
+    Parameters
+    ----------
+    images : original images
+    pca_r, pca_g, pca_b : IPCA objects
+
+    Returns
+    -------
+    img_rec : recreation of images with reduced number of components
+
+    '''
+    samples = len(images)
+    
+    # split images into three color channels and flatten
+    img_r = images[:,:,:,0].reshape(samples,-1)
+    img_g = images[:,:,:,1].reshape(samples,-1)
+    img_b = images[:,:,:,2].reshape(samples,-1)
+
+    # apply dimensionality reduction to images
+    img_rt = pca_r.transform(img_r)
+    img_gt = pca_g.transform(img_g)
+    img_bt = pca_b.transform(img_b)
+
+    # transform data back into original space
+    img_rinv = pca_r.inverse_transform(img_rt).reshape(samples,IMAGE_SIZE,IMAGE_SIZE)
+    img_ginv = pca_g.inverse_transform(img_gt).reshape(samples,IMAGE_SIZE,IMAGE_SIZE)
+    img_binv = pca_b.inverse_transform(img_bt).reshape(samples,IMAGE_SIZE,IMAGE_SIZE)
+    
+    img_rec = np.empty([samples,IMAGE_SIZE,IMAGE_SIZE,3])
+    
+    # merge color channels for each image
+    for i in range(samples):
+        img_rec[i] = cv2.merge((img_rinv[i],img_ginv[i],img_binv[i]))
+        
+    return img_rec
+#%%
+# prevent code execution when importing functions
+if __name__ == '__main__':
+    # get the data generators for IPCA
+    # batch size for IPCa will be equal to train_batch_size
+    train_gen, val_gen = get_pcam_generators('C:\8P361',5000,5000)
+    #%%
+    # train IPCA models
+    # number of retained components can not be higher than 9216 (number of features per channel)
+    # or train_batch_size
+    pca_r,pca_g,pca_b = Inc_PCA(train_gen, [1263,787,1849])
+    
+    # save trained IPCA objects
+    parent = dirname(dirname(abspath(__file__)))
+    folder = parent + "\IPCA Models\\"
+    pk.dump(pca_r, open(folder + "pca_r_80.pkl","wb"))
+    pk.dump(pca_g, open(folder + "pca_g_80.pkl","wb"))
+    pk.dump(pca_b, open(folder + "pca_b_80.pkl","wb"))
+    #%%
+    '''
+    All code below is for testing/analysing the IPCA objects
+    '''
+    # load IPCa models
+    pca_r_all,pca_g_all,pca_b_all = IPCA_load('all')
+    pca_r,pca_g,pca_b = IPCA_load(80)
+
+    #%%
+    # view retained variance
+    pca_list = [pca_r,pca_g,pca_b]
+    for i in pca_list:
+        print(np.sum(i.explained_variance_ratio_))
+    #%% test IPCA models
+    # use IPCA models to transform and reconstruct images
+    nr_images = 5
+    batch = random.randrange(len(train_gen))
+    n = random.sample(range(len(train_gen[batch][0])),nr_images)
+    img = train_gen[batch][0][n]
+    
+    img_rec = IPCA_reconstruction(img,pca_r,pca_g,pca_b)
+    
+    for i in range(nr_images):
+        # show original and reconstructed images side-by-side
+        f,ax = plt.subplots(1,2)
+        ax[0].imshow(img[i])
+        ax[0].axis('off')
+        ax[0].set_title('original')
+    
+        ax[1].imshow(img_rec[i])
+        ax[1].axis('off')
+        ax[1].set_title('reconstruction')
+    
+    #%%
+    # visualize cumulative variance explaned by each component
+    pca = [pca_r_all,pca_g_all,pca_b_all]
+    plt.figure(figsize=[7, 10])
+    color = ['red','green','blue']
+    # iterate over IPCA objects for each color channel
+    for i in range(len(pca)):
+        # extract and scale explaned variance ratios for each component
+        exp_var = pca[i].explained_variance_ratio_ * 100
+        # cumulatively add ratios
+        cum_exp_var = np.cumsum(exp_var)
+        cum_exp_var = np.insert(cum_exp_var,0,0)
+        com = pca[i].n_components_
+    
+        plt.step(range(1, com+2), cum_exp_var, where='mid',
+             label='Cumulative explained variance for the ' + color[i] + ' color channel', 
+             color=color[i])
     
     plt.ylabel('Explained variance percentage')
     plt.xlabel('Principal component index')
-    plt.title("Individual explained variance for the " + color[i] + ' color channel')
+    plt.legend(loc='right')
+    plt.title("Cumulative explained variance")
     plt.tight_layout()
     
+    # visualize explained variance per component per IPCA model
+    for i in range(len(pca)):
+        plt.figure()
+        
+        exp_var = pca[i].explained_variance_ratio_ * 100
+        # plot without components with biggest explained variance
+        plt.bar(range(4, pca[i].n_components_ + 1), exp_var[3:], align='center',
+                color=color[i], width=100)
+        
+        plt.ylabel('Explained variance percentage')
+        plt.xlabel('Principal component index')
+        plt.title("Individual explained variance for the " + color[i] + ' color channel')
+        plt.tight_layout()
+    #%%
+    # get index of max component to keep to retain target variance
+    exp_var_r = pca_r_all.explained_variance_ratio_
+    exp_var_g = pca_g_all.explained_variance_ratio_
+    exp_var_b = pca_b_all.explained_variance_ratio_
+    exp_var_list = [exp_var_r,exp_var_g,exp_var_b]
     
-#%%
-# get index of max component to keep to retain target variance
-exp_var_r = pca_r_all.explained_variance_ratio_
-exp_var_g = pca_g_all.explained_variance_ratio_
-exp_var_b = pca_b_all.explained_variance_ratio_
-exp_var_list = [exp_var_r,exp_var_g,exp_var_b]
-# define target variance for each color channel [r,g,b]
-target_var = [0.8, 0.8, 0.8]
-com_target_idx = []
-for i in range(len(exp_var_list)):
-    cum_var = np.cumsum(exp_var_list[i])
-    # compare cumulative variance ratio with target and return index
-    com_target_idx.append(np.argmax(cum_var>=target_var[i]))
-# note: this is the index of the max component
-# the actual number of components to keep is this plus one
-print(com_target_idx)
-#%%
-# view explained variance ratio per component
-exp_var_r = pca_r_all.explained_variance_ratio_
-exp_var_g = pca_g_all.explained_variance_ratio_
-exp_var_b = pca_b_all.explained_variance_ratio_
-print(exp_var_r)
-print(exp_var_g)
-print(exp_var_b)
-#%%
-# calulate number of components with a explained variance ratio above the
-# mean explained variance ratio
-mean_exp_var = []
-num_com_above = []
-for i in range(len(exp_var_list)):
-    # calculate mean
-    mean_exp_var.append(np.mean(exp_var_list[i]))
-    num_com_above.append(np.count_nonzero(exp_var_list[i] > mean_exp_var[i]))
-print(mean_exp_var)
-print(num_com_above)
+    # view explained variance ratio per component
+    print(exp_var_r)
+    print(exp_var_g)
+    print(exp_var_b)
+    
+    # define target variance for each color channel [r,g,b]
+    target_var = [0.8, 0.8, 0.8]
+    com_target_idx = []
+    for i in range(len(exp_var_list)):
+        cum_var = np.cumsum(exp_var_list[i])
+        # compare cumulative variance ratio with target and return index
+        com_target_idx.append(np.argmax(cum_var>=target_var[i]))
+    # note: this is the index of the max component
+    # the actual number of components to keep is this plus one
+    print(com_target_idx)
+    #%%
+    # calulate number of components with a explained variance ratio above the
+    # mean explained variance ratio
+    mean_exp_var = []
+    num_com_above = []
+    for i in range(len(exp_var_list)):
+        # calculate mean
+        mean_exp_var.append(np.mean(exp_var_list[i]))
+        num_com_above.append(np.count_nonzero(exp_var_list[i] > mean_exp_var[i]))
+    print(mean_exp_var)
+    print(num_com_above)
