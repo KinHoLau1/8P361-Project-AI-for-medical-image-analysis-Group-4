@@ -63,6 +63,8 @@ ret_var = '80'
 #ret_var = '60'
 
 pca_r,pca_g,pca_b = IPCA_load(ret_var)
+# data generators without PCA
+#train_gen, val_gen = get_pcam_generators('C:\8P361',1024,1024)
 # get the data generators (with real time dimensionality reduction)
 train_gen, val_gen = get_pcam_generators('C:\8P361',1024,1024,preprocessing=True,
                                          pca_r=pca_r,pca_g=pca_g,pca_b=pca_b)
@@ -73,6 +75,7 @@ model = get_model()
 parent = dirname(dirname(abspath(__file__)))
 model_folder = parent + "\CNN Models\\"
 model_name = model_folder + 'IPCA_'+ret_var+'_model'
+# model_name = model_folder + 'fully_convolutional_model'
 model_filepath = model_name + '.json'
 weights_filepath = model_name + '_weights.hdf5'
 

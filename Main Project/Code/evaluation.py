@@ -19,6 +19,7 @@ import pandas as pd
 from matplotlib.pyplot import imread
 
 from tensorflow.keras.models import model_from_json
+from tensorflow.keras.metrics import BinaryAccuracy
 
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
@@ -28,7 +29,7 @@ from PCA import IPCA_load, IPCA_reconstruction
 # the size of the images in the PCAM dataset
 IMAGE_SIZE = 96
 
-def predictions(files, pca_r, pca_g, pca_b, batch_size=1000, labels=False):
+def predictions(files, pca_r, pca_g, pca_b, batch_size=1000, labels=False, PCA=True):
     '''
     Generates predictions using a trained model and returns dataframe containing
     image ids, predictions and , optionally, the true labels
@@ -39,14 +40,14 @@ def predictions(files, pca_r, pca_g, pca_b, batch_size=1000, labels=False):
     pca_r, pca_g, pca_b: IPCA objects
     batch_size : number of images to provide predictions for per batch.
     The default is 1000.
-    labels : boolean which determines whether true labels are also added into
-    the dataframe that is returned. Needed to generate ROC curve. 
-    The default is False.
+    labels: Boolean determining whether or not to return true labels within
+    returned dataframe. The default is False
+    PCA: Boolean determining whether PCA is applied during preprocessing or not.
+    The default is True
 
     Returns
     -------
-    pred_pd : dataframe containg image ids and their predicted labels. Also
-    contains true labels if labels is set to True.
+    pred_pd : dataframe containg image ids, predicted labels and ,optionally, true labels.
 
     '''
     # prepare empty dataframe
@@ -73,10 +74,12 @@ def predictions(files, pca_r, pca_g, pca_b, batch_size=1000, labels=False):
         
         # apply the same preprocessing as during draining
         K_test = K_test.astype('float')/255.0
-        K_test_pca = IPCA_reconstruction(K_test, pca_r, pca_g, pca_b)
-        
-        # generate predictions
-        predictions = model.predict(K_test_pca)
+        if PCA == True:
+            K_test_pca = IPCA_reconstruction(K_test, pca_r, pca_g, pca_b)
+            # generate predictions
+            predictions = model.predict(K_test_pca)
+        else:
+            predictions = model.predict(K_test)
         
         df['prediction'] = predictions
         # append data to final dataframe
@@ -84,7 +87,7 @@ def predictions(files, pca_r, pca_g, pca_b, batch_size=1000, labels=False):
             df['label'] = [int(file.partition('valid/')[2][0]) for file in files[idx:idx+batch_size]]
             pred_pd = pd.concat([pred_pd, df[['id', 'prediction','label']]])
         else:
-            pred_pd = pd.concat([pred_pd, df[['id', 'prediction']]])
+            pred_pd = pd.concat([pred_pd, df[['id', 'prediction']]])   
         
     return pred_pd
 
@@ -94,18 +97,26 @@ test_path = 'C:/8P361/test'
 val_path = 'C:/8P361/valid'
 
 # load IPCA models
-#ret_var = '90'
+ret_var = '90'
 #ret_var = '80'
 #ret_var = '70'
-ret_var = '60'
+#ret_var = '60'
+#ret_var = None
 
-pca_r,pca_g,pca_b = IPCA_load(ret_var)
-
-# load CNN model
 parent = dirname(dirname(abspath(__file__)))
 model_folder = parent + '\CNN Models\\'
-model_filepath = model_folder + 'IPCA_'+ret_var+'_model' + '.json' 
-model_weights_filepath = model_folder + 'IPCA_'+ret_var+'_model' + '_weights.hdf5'
+if ret_var != None:
+    pca_r,pca_g,pca_b = IPCA_load(ret_var)
+    
+    # load CNN model
+    model_filepath = model_folder + 'IPCA_'+ret_var+'_model' + '.json' 
+    model_weights_filepath = model_folder + 'IPCA_'+ret_var+'_model' + '_weights.hdf5'
+    PCA = True
+else:
+    pca_r,pca_g,pca_b = [[],[],[]]
+    model_filepath = model_folder + 'fully_convolutional_model.json' 
+    model_weights_filepath = model_folder + 'fully_convolutional_model_weights.hdf5'
+    PCA = False
 
 # load model and model weights
 json_file = open(model_filepath, 'r')
@@ -121,8 +132,14 @@ test_files = glob.glob(test_path + '/*.tif')
 val_files = glob.glob(val_path + '/0/*.jpg') + glob.glob(val_path + '/1/*.jpg') 
 
 # perform predictions
-pred_test = predictions(test_files, pca_r, pca_g, pca_b,1000)
-pred_val = predictions(val_files, pca_r, pca_g, pca_b, 1000, True)
+#pred_test = predictions(test_files, pca_r, pca_g, pca_b, 1000, False, PCA)
+pred_val = predictions(val_files, pca_r, pca_g, pca_b, 1000, True, PCA)
+
+#%%
+#calculate accuracy
+val_acc = BinaryAccuracy()
+val_acc.update_state(pred_val['label'],pred_val['prediction'])
+print('Validation accuracy is:'+str(val_acc.result().numpy()))
 #%%
 # ROC analysis
 fpr, tpr, thresholds = roc_curve(pred_val['label'], pred_val['prediction'])
@@ -141,9 +158,11 @@ plt.show()
 print(auc_model)
 #%%
 # rename prediction column
+pred_test = pred_test[['id','prediction']]
 pred_test.rename(columns={'prediction':'label'},inplace=True)
 # check first columns
 pred_test.head()
 # save submission
 sub_folder = parent+'\Submissions\\'
 pred_test.to_csv(sub_folder+'submission_'+ret_var+'.csv', index = False, header = True)
+#%%
