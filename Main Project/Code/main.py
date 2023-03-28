@@ -57,25 +57,27 @@ def get_model(kernel_size=(3,3), pool_size=(4,4), first_filters=32, second_filte
 #%%
 # load IPCa models
 # select retained variance
-#ret_var = '90'
-ret_var = '80'
+ret_var = '90'
+#ret_var = '80'
 #ret_var = '70'
 #ret_var = '60'
 
 pca_r,pca_g,pca_b = IPCA_load(ret_var)
+
 # data generators without PCA
-#train_gen, val_gen = get_pcam_generators('C:\8P361',1024,1024)
+train_gen, val_gen = get_pcam_generators('C:\8P361',512,512)
+
 # get the data generators (with real time dimensionality reduction)
-train_gen, val_gen = get_pcam_generators('C:\8P361',1024,1024,preprocessing=True,
-                                         pca_r=pca_r,pca_g=pca_g,pca_b=pca_b)
+#train_gen, val_gen = get_pcam_generators('C:\8P361',1024,1024,preprocessing=True,
+#                                         pca_r=pca_r,pca_g=pca_g,pca_b=pca_b)
 #%% build model
 model = get_model()
 
 # save the model and weights
 parent = dirname(dirname(abspath(__file__)))
 model_folder = parent + "\CNN Models\\"
-model_name = model_folder + 'IPCA_'+ret_var+'_model'
-# model_name = model_folder + 'fully_convolutional_model'
+#model_name = model_folder + 'IPCA_'+ret_var+'_model'
+model_name = model_folder + 'fully_convolutional_model'
 model_filepath = model_name + '.json'
 weights_filepath = model_name + '_weights.hdf5'
 
@@ -85,10 +87,25 @@ with open(model_filepath, 'w') as json_file:
 
 # define the model checkpoint and Tensorboard callbacks
 checkpoint = ModelCheckpoint(weights_filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
-tensorboard = TensorBoard(os.path.join(model_folder, 'Logs', 'IPCA_'+ret_var+'_model'))
+
+#tensorboard = TensorBoard(os.path.join(model_folder, 'Logs', 'IPCA_'+ret_var+'_model'))
+tensorboard = TensorBoard(os.path.join(model_folder, 'Logs', 'fully_convolutional_model'))
+
 # stop training early if validation loss stops decreasing
 earlystopping = EarlyStopping(monitor="val_loss",mode="min", patience=1, restore_best_weights=True)
 callbacks_list = [checkpoint, tensorboard, earlystopping]
+
+from tensorflow.keras.models import model_from_json
+model_filepath = model_folder + 'fully_convolutional_model.json' 
+model_weights_filepath = model_folder + 'fully_convolutional_model_weights.hdf5'
+json_file = open(model_filepath, 'r')
+loaded_model_json = json_file.read()
+json_file.close()
+model = model_from_json(loaded_model_json)
+
+# load weights into new model
+model.load_weights(model_weights_filepath)
+model.compile(SGD(learning_rate=0.01, momentum=0.95), loss = 'binary_crossentropy', metrics=['accuracy'])
 #%% train model
 train_steps = train_gen.n//train_gen.batch_size
 val_steps = val_gen.n//val_gen.batch_size

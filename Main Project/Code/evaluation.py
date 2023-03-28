@@ -19,7 +19,6 @@ import pandas as pd
 from matplotlib.pyplot import imread
 
 from tensorflow.keras.models import model_from_json
-from tensorflow.keras.metrics import BinaryAccuracy
 
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
@@ -92,20 +91,20 @@ def predictions(files, pca_r, pca_g, pca_b, batch_size=1000, labels=False, PCA=T
     return pred_pd
 
 #%%
-#Change these variables to point at the locations and names of the test dataset and your models.
+#Change these variables to point at the locations and names of the test dataset and the models.
 test_path = 'C:/8P361/test'
 val_path = 'C:/8P361/valid'
 
 # load IPCA models
-ret_var = '90'
+#ret_var = '90'
 #ret_var = '80'
 #ret_var = '70'
 #ret_var = '60'
-#ret_var = None
+ret_var = '100'
 
 parent = dirname(dirname(abspath(__file__)))
 model_folder = parent + '\CNN Models\\'
-if ret_var != None:
+if ret_var != '100':
     pca_r,pca_g,pca_b = IPCA_load(ret_var)
     
     # load CNN model
@@ -132,14 +131,8 @@ test_files = glob.glob(test_path + '/*.tif')
 val_files = glob.glob(val_path + '/0/*.jpg') + glob.glob(val_path + '/1/*.jpg') 
 
 # perform predictions
-#pred_test = predictions(test_files, pca_r, pca_g, pca_b, 1000, False, PCA)
+pred_test = predictions(test_files, pca_r, pca_g, pca_b, 1000, False, PCA)
 pred_val = predictions(val_files, pca_r, pca_g, pca_b, 1000, True, PCA)
-
-#%%
-#calculate accuracy
-val_acc = BinaryAccuracy()
-val_acc.update_state(pred_val['label'],pred_val['prediction'])
-print('Validation accuracy is:'+str(val_acc.result().numpy()))
 #%%
 # ROC analysis
 fpr, tpr, thresholds = roc_curve(pred_val['label'], pred_val['prediction'])
@@ -165,4 +158,3 @@ pred_test.head()
 # save submission
 sub_folder = parent+'\Submissions\\'
 pred_test.to_csv(sub_folder+'submission_'+ret_var+'.csv', index = False, header = True)
-#%%
